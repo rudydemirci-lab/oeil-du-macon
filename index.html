@@ -54,6 +54,15 @@ ol.rang .pos{width:1.6em;font-weight:700;color:var(--rouge)}
 ol.rang .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 ol.rang .sc{font-weight:700;font-variant-numeric:tabular-nums}
 ol.rang li.moi{background:#d6e2ff;font-weight:700}
+.podium{display:flex;align-items:flex-end;gap:6px;margin:10px 0 16px}
+.podium div{flex:1;min-width:0;text-align:center;border:2px solid var(--encre);border-radius:6px 6px 0 0;background:var(--blanc);padding:8px 4px;font-weight:700}
+.podium .p1{height:128px;background:var(--rouge);color:#fff}
+.podium .p2{height:100px;background:#d6e2ff}
+.podium .p3{height:78px}
+.podium b{display:block;font:400 2.2rem/1 Haettenschweiler,Impact,"Arial Narrow Bold",sans-serif}
+.podium span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.9rem}
+.victoire{font:400 2rem/1.05 Haettenschweiler,Impact,"Arial Narrow Bold",sans-serif;color:var(--bleu);text-transform:uppercase;margin:10px 0}
+#feu{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9}
 @media (prefers-reduced-motion:reduce){#bande{transition:none}}
 </style>
 </head>
@@ -531,6 +540,27 @@ function rankHtml(seed, me){
   return '<ol class="rang">' + rows.map((n,i) => `<li class="${n===me?'moi':''}"><span class="pos">${i+1}</span><span class="nom">${esc(n)}</span><span class="sc">${b[n]}</span></li>`).join('') + '</ol>';
 }
 
+function podiumHtml(seed){
+  const b = board(seed), rows = Object.keys(b).sort((x,y) => b[y]-b[x]);
+  return '<div class="podium">' + [1,0,2].map(i => rows[i] === undefined ? `<div class="p${i+1}" style="visibility:hidden"></div>` : `<div class="p${i+1}"><b>${i+1}</b><span>${esc(rows[i])}</span><span>${b[rows[i]]} pts</span></div>`).join('') + '</div>';
+}
+function feu(){
+  try{
+    if(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+    const vieux = el('feu'); if(vieux) vieux.remove();
+    const cv = document.createElement('canvas'); cv.id = 'feu'; document.body.appendChild(cv);
+    const W = cv.width = innerWidth, H = cv.height = innerHeight, x = cv.getContext('2d'), cols = ['#d62828','#1d4ed8','#f4c20d','#14213d'], P = [];
+    let n = 0, next = 0; const t0 = performance.now();
+    const boom = () => { const cx = W*(.15+Math.random()*.7), cy = H*(.12+Math.random()*.4), c = cols[n++%4];
+      for(let i=0;i<70;i++){ const a = Math.random()*6.28, v = 1+Math.random()*5; P.push({ x:cx, y:cy, vx:Math.cos(a)*v, vy:Math.sin(a)*v, l:1, c }); } };
+    const tick = now => { const t = now-t0; if(t > next && t < 4000){ boom(); next = t+350; }
+      x.clearRect(0,0,W,H);
+      for(const p of P){ if(p.l <= 0) continue; p.x += p.vx; p.y += p.vy; p.vy += .06; p.vx *= .985; p.l -= .013; if(p.l > 0){ x.globalAlpha = p.l; x.fillStyle = p.c; x.beginPath(); x.arc(p.x,p.y,3.2,0,6.28); x.fill(); } }
+      if(t < 6000) requestAnimationFrame(tick); else cv.remove(); };
+    requestAnimationFrame(tick);
+  }catch(e){}
+}
+
 /* ---------- écrans ---------- */
 const TITRE = `<h1><span>L'œil</span><span>du maçon</span></h1>`;
 const REGLE = `<p>${NBQ} épreuves, ${TEMPS} secondes chacune. Pas de mètre, pas de niveau : juste ton œil. Le plus proche de la bonne réponse marque le plus.</p>
@@ -634,14 +664,29 @@ function finish(){
   store.set('odm_p_'+g.seed, { name:g.name, total:g.total });
   result(g.seed);
 }
+const PIQUES = [
+  [900, ['Chef de chantier. Le niveau à bulle te demande des conseils.', 'Un œil pareil, ça se déclare aux impôts.', 'Tu peux jeter ton mètre, il ne te sert plus à rien.']],
+  [800, ['Très bon compagnon. Il te manque juste la moustache du chef.', 'Solide. On te confie le chantier, mais pas encore les clés du camion.', 'Presque parfait. Presque.']],
+  [700, ['Pas mal, mais le chef aurait fait mieux les yeux fermés.', 'Correct. Tes murs tiennent debout, c\'est déjà ça.', 'Ça passe, mais on vérifiera quand même derrière toi.']],
+  [600, ['Moyen. Garde ton mètre dans la poche, tu en as besoin.', 'L\'œil est là, mais il louche un peu.', 'Tu ferais un bon manœuvre. Un jour.']],
+  [500, ['Ça tient debout, mais personne n\'ose s\'appuyer dessus.', 'Avec toi, « à peu près » devient une unité de mesure.', 'On comprend mieux pourquoi tes étagères penchent.']],
+  [400, ['Tu mesures à l\'œil, et ça se voit.', 'Même le stagiaire rigole.', 'Ton fil à plomb a demandé sa mutation.']],
+  [250, ['C\'est toi qui as monté la tour de Pise ?', 'On te laisse la brouette, pas plus.', 'Tes murs font des vagues. Tu bosses en bord de mer ?']],
+  [0,   ['Va chercher les cafés, c\'est plus sûr pour tout le monde.', 'Tu confonds la truelle et la fourchette.', 'Même la bétonnière a honte.', 'Rends ton casque, on en reparlera.']]
+];
+const pique = (seed,name,s) => { const l = PIQUES.find(t => s >= t[0])[1]; return l[h32(seed+'|'+name+'|pique') % l.length]; };
 function result(seed){
   G = null;
   const me = store.get('odm_p_'+seed), url = link(seed), max = NBQ*100; setUrl('?d='+seed+'&r='+enc(seed));
-  const s = me.total, verdict = s>=850 ? 'Chef de chantier. Tu peux ranger le niveau.' : s>=700 ? 'Bon compagnon, l\'œil est là.' : s>=500 ? 'Ça tient debout, mais sors quand même le mètre.' : 'Apprenti. Reprends le cordeau.';
-  const txt = `🧱 L'œil du maçon, ${nomDefi(seed)}\n${me.name} : ${s}/${max}\nFais mieux : ${url}`;
+  const bd = board(seed), ordre = Object.keys(bd).sort((x,y) => bd[y]-bd[x]), nb = ordre.length, gagne = nb >= 2 && ordre[0] === me.name;
+  const s = me.total, verdict = pique(seed, me.name, s);
+  const txt = `🧱 L'œil du maçon, ${nomDefi(seed)}\n${me.name} : ${s}/${max}\n« ${verdict} »\n« ${verdict} »\nFais mieux : ${url}`;
   app.innerHTML = `<p class="code">${esc(nomDefi(seed))}</p>
 <div class="score">${s}<small> / ${max}</small></div><p><b>${verdict}</b></p>
-<h2>Classement</h2>${rankHtml(seed, me.name)}
+${gagne ? '<p class="victoire">Victoire ! C\'est toi qui as l\'œil.</p>' : ''}
+<h2>Podium</h2>${podiumHtml(seed)}
+${nb === 1 ? '<p class="petit">Tu es seul sur le podium pour l\'instant. Envoie le lien : il se remplira quand tes potes auront joué et t\'auront renvoyé le leur.</p>' : ''}
+${nb > 3 ? '<h2>Classement complet</h2>'+rankHtml(seed, me.name) : ''}
 <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Envoyer sur WhatsApp</a>
 <button id="copier" class="second">Copier le lien du défi</button>
 <button id="nouveau" class="second">Lancer une revanche</button>
@@ -651,6 +696,7 @@ function result(seed){
     catch(e){ el('info').textContent = url; }
   };
   el('nouveau').onclick = () => play(newSeed(), me.name);
+  if(gagne) feu();
 }
 
 /* ---------- démarrage ---------- */

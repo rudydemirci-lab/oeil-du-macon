@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L'œil du maçon</title>
+<meta name="description" content="10 épreuves, 13 secondes chacune. Défie tes collègues de chantier : qui a vraiment l'œil ?">
+<style>
+:root{ --fond:#eaf0fa; --blanc:#fff; --encre:#14213d; --bleu:#1d4ed8; --rouge:#d62828; --gris:#c9d1dc; }
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fond);color:var(--encre);font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:460px;margin:0 auto;padding:14px 14px 40px;min-height:100vh}
+h1{font:400 3.4rem/0.9 Haettenschweiler,Impact,"Arial Narrow Bold","Roboto Condensed",sans-serif;margin:10px 0 14px;text-transform:uppercase;color:var(--bleu)}
+h1 span{display:block;width:fit-content}
+h1 span + span{color:var(--rouge);border-top:4px solid var(--rouge);margin-top:6px;padding-top:6px}
+h2{font-size:1.1rem;line-height:1.25;margin:10px 0 8px}
+p{margin:0 0 14px}
+.petit{font-size:.9rem;opacity:.85}
+.bleu{color:var(--bleu);font-weight:700}.rouge{color:var(--rouge);font-weight:700}
+label{display:block;font-weight:600;margin:18px 0 6px}
+input{font:inherit;width:100%;padding:13px 12px;border:2px solid var(--encre);border-radius:6px;background:var(--blanc);color:var(--encre)}
+button,.btn{font:inherit;font-weight:800;display:block;width:100%;text-align:center;text-decoration:none;padding:14px 12px;margin-top:12px;border:2px solid var(--encre);border-radius:6px;background:var(--bleu);color:#fff;cursor:pointer;touch-action:manipulation}
+button.second,.btn.second{background:var(--blanc);color:var(--bleu)}
+button.go{background:var(--rouge);font-size:1.5rem;padding:16px 12px}
+button:active,.btn:active{transform:translateY(1px)}
+:focus-visible{outline:3px solid var(--rouge);outline-offset:2px}
+.erreur{color:var(--rouge);font-weight:600;min-height:1.4em;margin:8px 0 0}
+.code{font:400 2.2rem/1 Haettenschweiler,Impact,"Arial Narrow Bold",sans-serif;letter-spacing:.08em;color:var(--bleu)}
+.tete{display:flex;justify-content:space-between;font-weight:700}
+.ruban{height:20px;background:var(--blanc);border:2px solid var(--encre);border-radius:4px;margin-top:6px;overflow:hidden}
+#bande{height:100%;width:100%;background:repeating-linear-gradient(90deg,#fff 0 1.5px,transparent 1.5px 12px) 0 100%/100% 45% no-repeat,var(--rouge);transition:width .1s linear}
+svg.fig{display:block;width:100%;height:auto;background:var(--blanc);border:2px solid var(--encre);border-radius:6px}
+.cible{stroke:var(--rouge);stroke-width:4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.rep{stroke:var(--bleu);stroke-width:2.5;fill:none;stroke-linecap:round}
+.tiret{stroke:var(--bleu);stroke-width:2;stroke-dasharray:6 5;fill:none}
+.plein{fill:var(--gris);stroke:#7d8797;stroke-width:1}
+.rplein{fill:#f3bcbc;stroke:var(--rouge);stroke-width:2.5;stroke-linejoin:round}
+svg text{font:700 14px system-ui,sans-serif;fill:var(--bleu)}
+svg text.cote{fill:var(--encre)}
+.aff{display:flex;justify-content:center;align-items:baseline;gap:6px;height:48px;line-height:44px;border:2px solid var(--encre);border-radius:6px;background:var(--blanc);font-size:1.6rem;font-weight:800;margin-top:8px}
+.aff .vide{opacity:.3}
+.pave{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.pave button{margin:0;padding:0;height:46px;font-size:1.3rem;background:var(--blanc);color:var(--encre)}
+.pave button.ok{grid-column:1/-1;height:54px;background:var(--rouge);color:#fff}
+.retour{background:var(--blanc);border:2px solid var(--encre);border-radius:6px;padding:12px;margin-top:10px}
+.retour .pts{font:400 2rem/1 Haettenschweiler,Impact,"Arial Narrow Bold",sans-serif;color:var(--bleu)}
+.score{font:400 5rem/0.9 Haettenschweiler,Impact,"Arial Narrow Bold",sans-serif;margin:6px 0 4px;color:var(--rouge)}
+.score small{font-size:1.6rem;color:var(--encre)}
+ol.rang{list-style:none;margin:8px 0 18px;padding:0;border:2px solid var(--encre);border-radius:6px;background:var(--blanc);overflow:hidden}
+ol.rang li{display:flex;gap:10px;padding:10px 12px;border-top:1px solid var(--gris)}
+ol.rang li:first-child{border-top:0}
+ol.rang .pos{width:1.6em;font-weight:700;color:var(--rouge)}
+ol.rang .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ol.rang .sc{font-weight:700;font-variant-numeric:tabular-nums}
+ol.rang li.moi{background:#d6e2ff;font-weight:700}
+@media (prefers-reduced-motion:reduce){#bande{transition:none}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+/* ---------- utilitaires ---------- */
+const TEMPS = 13, NBQ = 10;
+const app = document.getElementById('app');
+const el = id => document.getElementById(id);
+const mem = {};
+const store = {
+  get(k){ try{ const v = localStorage.getItem(k); if(v !== null) return JSON.parse(v); }catch(e){} return k in mem ? mem[k] : null; },
+  set(k,v){ mem[k] = v; try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fr = n => String(n).replace('.', ',');
+const f1 = n => n.toFixed(1);
+const has = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
+function h32(s){ let h = 2166136261; for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h,16777619); } return h>>>0; }
+function rng(seed){ let a = h32(seed); return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a>>>15, 1|a); t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14)>>>0) / 4294967296; }; }
+const ri = (r,a,b) => a + Math.floor(r() * (b - a + 1));
+const cleanName = s => String(s||'').replace(/[<>|~]/g,'').trim().slice(0,16);
+const NOMS_DEFI = { TRUELLE:'Truelle', TALOCHE:'Taloche', MASSETTE:'Massette', BURIN:'Burin', NIVEAU:'Niveau', CORDEAU:'Cordeau', AUGE:'Auge', PELLE:'Pelle', PIOCHE:'Pioche', BROUETTE:'Brouette',
+  MARTEAU:'Marteau', TENAILLE:'Tenaille', EQUERRE:'Équerre', FILAPLOMB:'Fil à plomb', BETONNIERE:'Bétonnière', LISSEUSE:'Lisseuse', PLATOIR:'Platoir', MAILLET:'Maillet', REGLE:'Règle', DISQUEUSE:'Disqueuse',
+  PERFO:'Perfo', SERREJOINT:'Serre-joint', CHEVILLETTE:'Chevillette', LANGUEDECHAT:'Langue de chat', BOUCHARDE:'Boucharde', TAMIS:'Tamis', SEAU:'Seau', MALAXEUR:'Malaxeur', PIEDDEBICHE:'Pied-de-biche', METRE:'Mètre' };
+const newSeed = () => { const k = Object.keys(NOMS_DEFI), c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = k[Math.floor(Math.random()*k.length)]; for(let i=0;i<3;i++) s += c[Math.floor(Math.random()*c.length)]; return s; };
+const nomDefi = seed => { for(const k in NOMS_DEFI) if(seed.length === k.length+3 && seed.startsWith(k)) return 'Défi '+NOMS_DEFI[k]; return 'Défi '+seed; };
+/* repère bleu en bas à gauche de la figure */
+const ref = (s,label) => `<path class="rep" d="M20 205H${20+s}M20 199V211M${20+s} 199V211"/><text x="${28+s}" y="210">${label}</text>`;
+
+/* ---------- épreuves (même code de défi = mêmes épreuves). Figures en 340 x 220 ---------- */
+function qAngle(r){
+  const ang = ri(r,8,172), a0 = r()*Math.PI*2, a1 = a0 + ang*Math.PI/180, cx=170, cy=110, L=90;
+  const p = (a,d) => f1(cx+Math.cos(a)*d)+' '+f1(cy+Math.sin(a)*d);
+  return { title:'Quel est cet angle ?', unit:'°', answer:ang, tol:25,
+    svg:`<path class="rep" d="M${p(a0,24)}A24 24 0 0 1 ${p(a1,24)}"/><path class="cible" d="M${p(a0,L)}L${cx} ${cy}L${p(a1,L)}"/>` };
+}
+function qPente(r){
+  const p = ri(r,2,45), rise = 300*p/100;
+  return { title:'Quelle est la pente de ce talus ?', unit:'%', answer:p, tol:Math.max(5,p*0.5),
+    svg:`<polygon class="plein" points="20,195 320,195 320,${195-rise}"/><path class="cible" d="M20 195L320 ${195-rise}"/><path class="tiret" d="M8 195H332"/>` };
+}
+function qLong(r){
+  const s = ri(r,50,62), cm = ri(r,8,84)*5, px = cm/100*s, rot = ri(r,-25,25);
+  return { title:'Quelle est la longueur de ce bastaing ?', unit:'cm', answer:cm, tol:cm*0.4,
+    svg:`<g transform="translate(170 85) rotate(${rot})"><rect class="rplein" x="${f1(-px/2)}" y="-8" width="${f1(px)}" height="16"/></g>${ref(s,'100 cm')}` };
+}
+function qDiam(r){
+  const s = ri(r,50,62), cm = ri(r,4,54)*5, R = cm/100*s/2;
+  return { title:'Quel est le diamètre de cette buse ?', unit:'cm', answer:cm, tol:cm*0.4,
+    svg:`<circle class="rplein" cx="190" cy="95" r="${f1(R)}"/><circle class="plein" cx="190" cy="95" r="${f1(R*0.8)}" style="fill:#fff"/>${ref(s,'100 cm')}` };
+}
+function qBlocs(r){
+  const cols = ri(r,6,12), rows = ri(r,4,9), top = ri(r,1,cols);
+  const bw = Math.min(320/(cols+0.5), 180/(rows*0.4)), bh = bw*0.4, x0 = (340-(cols+0.5)*bw)/2, y0 = 205;
+  let hole = null;
+  if(r() < 0.6){ const w = ri(r,2,3), h = 2, c0 = ri(r,1,cols-1-w), r0 = ri(r,1,rows-1-h); hole = {c0,r0,w,h}; }
+  let n = 0, svg = '';
+  for(let row=0; row<rows; row++){
+    const count = row === rows-1 ? top : cols, off = (row%2)*bw/2;
+    for(let c=0; c<count; c++){
+      if(hole && row>=hole.r0 && row<hole.r0+hole.h && c>=hole.c0 && c<hole.c0+hole.w) continue;
+      n++; svg += `<rect class="plein" x="${f1(x0+off+c*bw)}" y="${f1(y0-(row+1)*bh)}" width="${f1(bw-1.5)}" height="${f1(bh-1.5)}"/>`;
+    }
+  }
+  return { title:'Combien de parpaings dans ce mur ?', unit:'', answer:n, tol:n*0.4, svg };
+}
+function qTuyaux(r){
+  const n = ri(r,5,10), k = ri(r,2,Math.min(n-1,6));
+  const R = Math.min(150/n, 185/(2+(k-1)*1.732));
+  let c = 0, svg = '';
+  for(let i=0;i<k;i++) for(let j=0;j<n-i;j++){ c++; const x = 170-(n-i-1)*R+j*2*R, y = 205-R-i*R*1.732;
+    svg += `<circle class="plein" cx="${f1(x)}" cy="${f1(y)}" r="${f1(R-1)}"/><circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(R*0.6)}" fill="#fff" stroke="#7d8797"/>`; }
+  return { title:'Combien de tuyaux sur ce tas ?', unit:'', answer:c, tol:c*0.4, svg };
+}
+function qMarches(r){
+  const n = ri(r,9,26), w = 300/n, h = 175/n;
+  let d = 'M20 200';
+  for(let i=0;i<n;i++) d += `v${f1(-h)}h${f1(w)}`;
+  return { title:'Combien de marches dans cet escalier ?', unit:'', answer:n, tol:n*0.3, svg:`<path class="plein" d="${d}V200Z"/>` };
+}
+function qZigzag(r){
+  const n = ri(r,4,8), s = ri(r,30,42); let len = 0, px = 25, py = ri(r,18,70), d = `M${px} ${py}`;
+  for(let i=1;i<=n;i++){ const x = 25+i*290/n, y = i%2 ? ri(r,100,165) : ri(r,18,70); len += Math.hypot(x-px,y-py); d += `L${f1(x)} ${y}`; px = x; py = y; }
+  const m = Math.round(len/s*10);
+  return { title:'Quelle longueur de tranchée à creuser ?', unit:'m', answer:m, tol:m*0.4, svg:`<path class="cible" d="${d}"/>${ref(s,'10 m')}` };
+}
+function qPerim(r){
+  const k = ri(r,5,6), s = ri(r,28,40), pts = [];
+  for(let i=0;i<k;i++){ const a = i*2*Math.PI/k + r()*0.6, rad = ri(r,40,82); pts.push([170+Math.cos(a)*rad*1.6, 92+Math.sin(a)*rad]); }
+  let len = 0; pts.forEach((p,i) => { const q = pts[(i+1)%k]; len += Math.hypot(q[0]-p[0], q[1]-p[1]); });
+  const m = Math.round(len/s*10);
+  return { title:'Quelle longueur de clôture autour de ce terrain ?', unit:'m', answer:m, tol:m*0.4,
+    svg:`<polygon class="rplein" points="${pts.map(p => f1(p[0])+','+f1(p[1])).join(' ')}"/>${ref(s,'10 m')}` };
+}
+function qAplomb(r){
+  const d = ri(r,2,30), dx = d*0.8*(r()<0.5?-1:1), x = 160;
+  return { title:'Ce mur de 200 cm penche. De combien en tête ?', unit:'cm', answer:d, tol:Math.max(4,d*0.5),
+    svg:`<path class="rep" d="M40 195H300"/><polygon class="rplein" points="${x},195 ${x+24},195 ${f1(x+24+dx)},35 ${f1(x+dx)},35"/><path class="tiret" d="M${dx>0?x:x+24} 195V22"/>
+<path class="rep" d="M95 35V195M89 35H101M89 195H101"/><text x="30" y="120">200 cm</text>` };
+}
+function qHauteur(r){
+  const h = ri(r,18,45), H = Math.round(ri(r,70,180)/h*18)/10, P = H/1.8*h, t = 200-h, x = 105;
+  return { title:'Ce gars mesure 1,80 m. Quelle hauteur fait le poteau ?', unit:'m', answer:H, tol:H*0.4,
+    svg:`<path class="rep" d="M30 200H310"/><rect class="rplein" x="205" y="${f1(200-P)}" width="10" height="${f1(P)}"/>
+<circle class="rep" cx="${x}" cy="${f1(t+h*0.1)}" r="${f1(h*0.1)}"/><path class="rep" d="M${x} ${f1(t+h*0.2)}V${f1(200-h*0.42)}L${f1(x-h*0.14)} 200M${x} ${f1(200-h*0.42)}L${f1(x+h*0.14)} 200M${f1(x-h*0.18)} ${f1(t+h*0.52)}L${x} ${f1(t+h*0.3)}L${f1(x+h*0.18)} ${f1(t+h*0.52)}"/>
+<text x="${x}" y="216" text-anchor="middle">1,80 m</text>` };
+}
+function qSerpent(r){
+  const A = ri(r,30,75), f = ri(r,4,10)/2, phi = r()*6.28, s = ri(r,26,40); let len = 0, px = 0, py = 0, d = '';
+  for(let i=0;i<=240;i++){ const t = i/240, x = 25+290*t, y = 100+A*Math.sin(2*Math.PI*f*t+phi); if(i) len += Math.hypot(x-px,y-py); d += (i?'L':'M')+f1(x)+' '+f1(y); px = x; py = y; }
+  const m = Math.round(len/s);
+  return { title:'Combien de mètres de tuyau ?', unit:'m', answer:m, tol:m*0.4, svg:`<path class="cible" style="stroke-width:7" d="${d}"/>${ref(s,'1 m')}` };
+}
+const OUTILS = [
+  `<rect x="-2.5" y="-12" width="5" height="29" fill="#1d4ed8"/><rect x="-11" y="-18" width="22" height="9" rx="1.5" fill="#14213d"/>`,
+  `<polygon points="0,-18 9,3 -9,3" fill="#c9d1dc" stroke="#14213d" stroke-width="1.5"/><rect x="-2.2" y="3" width="4.4" height="14" rx="2" fill="#d62828"/>`,
+  `<rect x="-2.2" y="-10" width="4.4" height="20" fill="#7d8797"/><circle cy="-14" r="5.5" fill="none" stroke="#7d8797" stroke-width="3.5"/><circle cy="14" r="4.5" fill="none" stroke="#7d8797" stroke-width="3.5"/>`,
+  `<rect x="-1.3" y="-18" width="2.6" height="21" fill="#14213d"/><rect x="-4" y="3" width="8" height="15" rx="3" fill="#d62828"/>`
+];
+function qOutils(r){
+  const n = ri(r,8,22), cells = [...Array(24).keys()], marteaux = r() < 0.5;
+  for(let i=23;i>0;i--){ const j = Math.floor(r()*(i+1)); [cells[i],cells[j]] = [cells[j],cells[i]]; }
+  let c = 0, svg = '';
+  for(let i=0;i<n;i++){ const t = i === 0 ? 0 : ri(r,0,3), col = cells[i]%6, row = Math.floor(cells[i]/6); if(t === 0) c++;
+    svg += `<g transform="translate(${f1(37+col*53.3+ri(r,-6,6))} ${f1(35+row*50+ri(r,-5,5))}) rotate(${ri(r,0,359)})">${OUTILS[t]}</g>`; }
+  const ans = marteaux ? c : n;
+  return { title: marteaux ? 'Combien de marteaux sur la bâche ?' : 'Combien d\'outils sur la bâche ?', unit:'', answer:ans, tol:Math.max(2,ans*0.4), svg };
+}
+function qClous(r){
+  const n = ri(r,15,60); let svg = '';
+  for(let i=0;i<n;i++) svg += `<g transform="translate(${ri(r,20,320)} ${ri(r,18,202)}) rotate(${ri(r,0,359)})"><path d="M-7 0H7" stroke="#14213d" stroke-width="1.8"/><circle cx="-7" r="2.6" fill="#d62828"/></g>`;
+  return { title:'Combien de clous par terre ?', unit:'', answer:n, tol:n*0.4, svg };
+}
+function qFenetres(r){
+  const cols = ri(r,4,9), rows = ri(r,3,7), cw = 280/cols, ch = 175/rows; let n = 0, svg = '<rect class="plein" x="30" y="22" width="280" height="178"/>';
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ if(r() > 0.85 && (x||y)) continue; n++;
+    svg += `<rect x="${f1(30+x*cw+cw*0.2)}" y="${f1(25+y*ch+ch*0.2)}" width="${f1(cw*0.6)}" height="${f1(ch*0.6)}" fill="#d6e2ff" stroke="#1d4ed8" stroke-width="1.5"/>`; }
+  return { title:'Combien de fenêtres sur cette façade ?', unit:'', answer:n, tol:n*0.4, svg };
+}
+const bonhomme = (x,h) => { const t = 200-h; return `<circle class="rep" cx="${x}" cy="${f1(t+h*0.1)}" r="${f1(h*0.1)}"/><path class="rep" d="M${x} ${f1(t+h*0.2)}V${f1(200-h*0.42)}L${f1(x-h*0.14)} 200M${x} ${f1(200-h*0.42)}L${f1(x+h*0.14)} 200M${f1(x-h*0.18)} ${f1(t+h*0.52)}L${x} ${f1(t+h*0.3)}L${f1(x+h*0.18)} ${f1(t+h*0.52)}"/>`; };
+function qPalettes(r){
+  const n = ri(r,5,24), h = Math.min(16,178/n), x = 110, w = 120; let svg = '';
+  for(let i=0;i<n;i++){ const y = 200-(i+1)*h; svg += `<rect class="plein" x="${x}" y="${f1(y)}" width="${w}" height="${f1(h*0.35)}"/>` + [0,w/2-8,w-16].map(o => `<rect class="plein" x="${x+o}" y="${f1(y+h*0.35)}" width="16" height="${f1(h*0.55)}"/>`).join(''); }
+  return { title:'Combien de palettes empilées ?', unit:'', answer:n, tol:Math.max(2,n*0.3), svg };
+}
+function qCasques(r){
+  const n = ri(r,10,40), rouges = r() < 0.5; let c = 0, svg = '';
+  for(let i=0;i<n;i++){ const red = i === 0 || r() < 0.4; if(red) c++;
+    svg += `<g transform="translate(${ri(r,20,320)} ${ri(r,20,200)})"><circle r="8" fill="${red?'#d62828':'#1d4ed8'}" stroke="#14213d" stroke-width="1.5"/><circle r="3" fill="#fff" opacity=".7"/></g>`; }
+  const ans = rouges ? c : n;
+  return { title: rouges ? 'Combien de casques rouges sur le chantier ?' : 'Combien de casques sur le chantier ?', unit:'', answer:ans, tol:Math.max(2,ans*0.4), svg };
+}
+function qEchaf(r){
+  const et = ri(r,4,14), tr = ri(r,2,4), h = 178/et, w = 220/tr, x0 = 60; let d = '';
+  for(let t=0;t<=tr;t++) d += `M${f1(x0+t*w)} 200V${f1(200-et*h)}`;
+  for(let e=0;e<=et;e++) d += `M${x0} ${f1(200-e*h)}H${f1(x0+tr*w)}`;
+  for(let e=0;e<et;e++){ const b = e%tr; d += `M${f1(x0+b*w)} ${f1(200-e*h)}L${f1(x0+(b+1)*w)} ${f1(200-(e+1)*h)}`; }
+  return { title:'Combien d\'étages à cet échafaudage ?', unit:'', answer:et, tol:Math.max(2,et*0.3), svg:`<path class="rep" d="${d}"/>` };
+}
+function qSacs(r){
+  const cols = ri(r,3,6), rows = ri(r,4,10), top = ri(r,1,cols), bw = Math.min(240/cols,60), bh = Math.min(170/rows,22), x0 = (340-cols*bw)/2;
+  let n = 0, svg = `<rect class="plein" x="${f1(x0-8)}" y="198" width="${f1(cols*bw+16)}" height="8"/>`;
+  for(let y=0;y<rows;y++) for(let x=0;x<(y===rows-1?top:cols);x++){ n++;
+    svg += `<rect x="${f1(x0+x*bw+1)}" y="${f1(198-(y+1)*bh+1)}" width="${f1(bw-2)}" height="${f1(bh-2)}" rx="${f1(bh*0.35)}" fill="#eef1f6" stroke="#14213d" stroke-width="1.5"/>`; }
+  return { title:'Combien de sacs de ciment sur la palette ?', unit:'', answer:n, tol:n*0.4, svg };
+}
+function qCarreaux(r){
+  const cols = ri(r,7,12), rows = ri(r,5,8), cw = 300/cols, ch = 180/rows, p = ri(r,8,30)/100; let n = 0, svg = '';
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ const k = (x===0&&y===0) || r() < p, X = 20+x*cw, Y = 20+y*ch; if(k) n++;
+    svg += `<rect x="${f1(X)}" y="${f1(Y)}" width="${f1(cw-2)}" height="${f1(ch-2)}" fill="${k?'#f3bcbc':'#fff'}" stroke="${k?'#d62828':'#c9d1dc'}" stroke-width="1.5"/>` + (k ? `<path d="M${f1(X+2)} ${f1(Y+ch*0.3)}L${f1(X+cw*0.5)} ${f1(Y+ch*0.55)}L${f1(X+cw-4)} ${f1(Y+ch*0.35)}" stroke="#d62828" stroke-width="1.5" fill="none"/>` : ''); }
+  return { title:'Combien de carreaux cassés ?', unit:'', answer:n, tol:Math.max(2,n*0.4), svg };
+}
+function qTreillis(r){
+  const nx = ri(r,6,20), ny = ri(r,4,14); let d = '';
+  for(let i=0;i<nx;i++) d += `M${f1(35+i*270/(nx-1))} 15V205`;
+  for(let i=0;i<ny;i++) d += `M25 ${f1(25+i*170/(ny-1))}H315`;
+  return { title:'Combien de barres dans ce treillis, en tout ?', unit:'', answer:nx+ny, tol:(nx+ny)*0.3, svg:`<path d="${d}" stroke="#14213d" stroke-width="2.5" fill="none"/>` };
+}
+function qCuve(r){
+  const p = ri(r,5,95), h = 180*p/100;
+  return { title:'Cette cuve est pleine à combien ?', unit:'%', answer:p, tol:20,
+    svg:`<rect x="120" y="${f1(202-h)}" width="100" height="${f1(h)}" fill="#1d4ed8" opacity=".55"/><path d="M120 20V202H220V20" stroke="#14213d" stroke-width="4" fill="none"/>` };
+}
+function qPart(r){
+  const p = ri(r,5,95), a0 = r()*6.28, a1 = a0+p/100*2*Math.PI, R = 88, P = a => f1(170+Math.cos(a)*R)+' '+f1(110+Math.sin(a)*R);
+  return { title:'Quelle part de cette dalle ronde est déjà coulée ?', unit:'%', answer:p, tol:20,
+    svg:`<circle cx="170" cy="110" r="${R}" fill="#fff" stroke="#14213d" stroke-width="2"/><path class="rplein" d="M170 110L${P(a0)}A${R} ${R} 0 ${p>50?1:0} 1 ${P(a1)}Z"/>` };
+}
+function qPiquets(r){
+  const n = ri(r,10,40), pente = ri(r,-25,25); let d = '';
+  for(let i=0;i<n;i++){ const x = 20+i*300/(n-1), y = 160+pente*(i/(n-1)-0.5); d += `M${f1(x)} ${f1(y+30)}V${f1(y-40)}`; }
+  return { title:'Combien de piquets sur cette clôture ?', unit:'', answer:n, tol:n*0.3,
+    svg:`<path class="rep" d="M20 ${f1(140-pente/2)}L320 ${f1(140+pente/2)}"/><path d="${d}" stroke="#14213d" stroke-width="3.5" fill="none" stroke-linecap="round"/>` };
+}
+function qMurLong(r){
+  const h = ri(r,16,34), L = Math.round(ri(r,120,250)/h*1.8), W = L/1.8*h;
+  return { title:'Ce gars mesure 1,80 m. Quelle longueur fait le mur ?', unit:'m', answer:L, tol:L*0.4,
+    svg:`<path class="rep" d="M10 200H332"/><rect class="rplein" x="60" y="${f1(200-h*1.4)}" width="${f1(W)}" height="${f1(h*1.4)}"/>${bonhomme(32,h)}<text x="32" y="216" text-anchor="middle">1,80 m</text>` };
+}
+function qPaves(r){
+  const cols = ri(r,8,13), rows = ri(r,5,8), cw = 290/(cols+0.5), ch = 180/rows, p = ri(r,5,20)/100; let n = 0, svg = '<rect x="20" y="18" width="300" height="186" fill="#5b6475"/>';
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){ if((x===1&&y===1) || r() < p){ n++; continue; }
+    svg += `<rect class="plein" x="${f1(25+x*cw+(y%2)*cw/2)}" y="${f1(21+y*ch)}" width="${f1(cw-2)}" height="${f1(ch-2)}"/>`; }
+  return { title:'Combien de pavés manquent ?', unit:'', answer:n, tol:Math.max(2,n*0.4), svg };
+}
+function qScie(r){
+  const n = ri(r,10,40), w = 270/n; let d = 'M20 80H290V110';
+  for(let i=0;i<n;i++) d += `l${f1(-w/2)} 14l${f1(-w/2)} -14`;
+  return { title:'Combien de dents sur cette scie ?', unit:'', answer:n, tol:n*0.3, svg:`<path class="plein" d="${d}Z"/><rect class="rplein" x="288" y="62" width="42" height="70" rx="10"/>` };
+}
+function qEchelle(r){
+  const n = ri(r,6,24); let d = 'M140 12V208M200 12V208';
+  for(let i=0;i<n;i++){ const y = f1(12+(i+0.5)*196/n); d += `M140 ${y}H200`; }
+  return { title:'Combien de barreaux à cette échelle ?', unit:'', answer:n, tol:Math.max(2,n*0.3), svg:`<g transform="rotate(${ri(r,-10,10)} 170 110)"><path class="rep" style="stroke-width:3.5" d="${d}"/></g>` };
+}
+function qCote(r){
+  const v = ri(r,4,96)*5, x = 20+300*v/500;
+  return { title:'Ce mètre va de 0 à 500 cm. À quelle cote est le trait rouge ?', unit:'cm', answer:v, tol:60,
+    svg:`<rect x="20" y="95" width="300" height="30" fill="#d6e2ff" stroke="#1d4ed8" stroke-width="2"/><text x="20" y="145">0</text><text x="320" y="145" text-anchor="end">500 cm</text><path class="cible" d="M${f1(x)} 60V125"/><polygon points="${f1(x-7)},50 ${f1(x+7)},50 ${f1(x)},64" fill="#d62828"/>` };
+}
+function qTole(r){
+  const cols = ri(r,8,18), rows = ri(r,5,10), sx = 290/cols, sy = 176/rows, R = Math.min(sx,sy)*0.28; let svg = '<rect class="plein" x="20" y="18" width="300" height="186"/>';
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) svg += `<circle cx="${f1(25+sx*(x+0.5)+(y%2?1:-1)*sx/4)}" cy="${f1(23+sy*(y+0.5))}" r="${f1(R)}" fill="#fff" stroke="#7d8797"/>`;
+  return { title:'Combien de trous dans cette tôle perforée ?', unit:'', answer:cols*rows, tol:cols*rows*0.4, svg };
+}
+function qSurfCalc(r){
+  const A = ri(r,2,10), B = ri(r,2,10), k = Math.min(240/A,150/B), w = A*k, h = B*k, x = 70+(250-w)/2, y = 35+(150-h)/2;
+  return { title:'Combien de m² pour cette dalle ?', unit:'m²', answer:A*B, tol:A*B*0.4,
+    svg:`<rect class="rplein" x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}"/><text class="cote" x="${f1(x+w/2)}" y="${f1(y-8)}" text-anchor="middle">${A} m</text><text class="cote" x="${f1(x-8)}" y="${f1(y+h/2+5)}" text-anchor="end">${B} m</text>` };
+}
+function qSurfOeil(r){
+  const s = ri(r,14,22), A = ri(r,3,12), B = ri(r,2,7);
+  return { title:'Combien de m² fait cette dalle ?', unit:'m²', answer:A*B, tol:A*B*0.4,
+    svg:`<rect class="rplein" x="50" y="15" width="${A*s}" height="${B*s}"/><rect x="20" y="${205-s}" width="${s}" height="${s}" fill="#d6e2ff" stroke="#1d4ed8" stroke-width="2.5"/><text x="${28+s}" y="203">1 m²</text>` };
+}
+/* ---------- épreuves d'action (on agit au lieu de taper un chiffre) ---------- */
+const tap = (b,fn) => { let last = 0; b.onpointerdown = () => { last = Date.now(); fn(); }; b.onclick = () => { if(Date.now()-last > 600) fn(); }; };
+function qToupie(r){
+  const target = ri(r,30,90), dur = ri(r,35,65)/10, Y = 202-180*target/100;
+  return { title:'Arrête la toupie quand le béton arrive au trait rouge',
+    svg:`<rect id="niv" x="120" y="202" width="100" height="0" fill="#1d4ed8" opacity=".55"/><path d="M120 20V202H220V20" stroke="#14213d" stroke-width="4" fill="none"/><path class="cible" d="M100 ${f1(Y)}H240"/>`,
+    act(c){ let alive = true, lvl = 0; const t0 = performance.now()+700, niv = c.svg.querySelector('#niv');
+      c.zone.innerHTML = '<button class="go" id="stop">STOP</button>';
+      const tick = now => { if(!alive) return; lvl = Math.max(0,(now-t0)/(dur*1000))*100;
+        if(lvl >= 100){ alive = false; lvl = 100; }
+        niv.setAttribute('y', 202-1.8*lvl); niv.setAttribute('height', 1.8*lvl);
+        if(!alive){ c.done(0,'la cuve a débordé',target+' %'); return; }
+        requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      tap(el('stop'), () => { if(!alive) return; alive = false; c.done(100*(1-Math.abs(lvl-target)/25), Math.round(lvl)+' %', target+' %'); });
+      return () => { alive = false; }; } };
+}
+function qCamion(r){
+  const v = ri(r,90,150), acc = ri(r,0,60), delai = ri(r,5,20)*100, MUR = 312;
+  return { title:'Fais reculer le camion au plus près du mur, sans le toucher',
+    svg:`<path class="rep" d="M0 194H340"/><rect class="rplein" x="${MUR}" y="90" width="14" height="104"/>
+<g id="cam" transform="translate(100 0)"><rect class="plein" x="-72" y="128" width="72" height="50"/><rect x="-98" y="146" width="26" height="32" fill="#1d4ed8"/><circle cx="-80" cy="184" r="9" fill="#14213d"/><circle cx="-18" cy="184" r="9" fill="#14213d"/></g>`,
+    act(c){ let alive = true, x = 100; const t0 = performance.now()+delai, cam = c.svg.querySelector('#cam');
+      c.zone.innerHTML = '<button class="go" id="stop">FREINE</button>';
+      const tick = now => { if(!alive) return; const t = Math.max(0,(now-t0)/1000); x = 100+v*t+acc*t*t/2;
+        if(x >= MUR){ x = MUR; alive = false; }
+        cam.setAttribute('transform', `translate(${f1(x)} 0)`);
+        if(!alive){ c.done(0,'tu as touché le mur','le plus près possible, sans toucher'); return; }
+        requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      tap(el('stop'), () => { if(!alive) return; alive = false; c.done(100*(1-(MUR-x)/70), 'arrêt à '+Math.round((MUR-x)*5)+' cm du mur', 'le plus près possible, sans toucher'); });
+      return () => { alive = false; }; } };
+}
+function qChrono(r){
+  const target = ri(r,4,9);
+  return { title:`Compte ${target} secondes dans ta tête, sans montre`, noTimer:true,
+    svg:`<rect x="160" y="16" width="20" height="18" fill="#1d4ed8"/><circle cx="170" cy="118" r="82" fill="#fff" stroke="#1d4ed8" stroke-width="6"/><text x="170" y="140" text-anchor="middle" style="font-size:64px;fill:#d62828">${target} s</text>`,
+    act(c){ let t0 = 0, to = null, fini = false;
+      c.zone.innerHTML = '<button class="go" id="stop">Départ</button>';
+      const b = el('stop');
+      tap(b, () => { if(fini) return;
+        if(!t0){ t0 = performance.now(); b.textContent = 'STOP'; to = setTimeout(() => { if(!fini){ fini = true; c.done(0,'trop long',target+' s'); } }, target*2500); }
+        else { fini = true; clearTimeout(to); const t = (performance.now()-t0)/1000; c.done(100*(1-Math.abs(t-target)/2), fr(t.toFixed(2))+' s', target+' s'); } });
+      return () => { fini = true; clearTimeout(to); }; } };
+}
+function qPlomb(r){
+  const periode = ri(r,12,20)/10, amp = ri(r,25,40), phase = r()*6.28;
+  return { title:'Arrête le fil à plomb quand il est parfaitement vertical',
+    svg:`<path class="rep" d="M120 15H220"/><g id="fil" transform="rotate(${amp} 170 15)"><path d="M170 15V165" stroke="#14213d" stroke-width="2"/><polygon class="rplein" points="158,165 182,165 170,200"/></g>`,
+    act(c){ let alive = true, a = amp; const t0 = performance.now(), fil = c.svg.querySelector('#fil');
+      c.zone.innerHTML = '<button class="go" id="stop">STOP</button>';
+      const tick = now => { if(!alive) return; a = amp*Math.sin(2*Math.PI*(now-t0)/1000/periode+phase); fil.setAttribute('transform', `rotate(${a.toFixed(2)} 170 15)`); requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      tap(el('stop'), () => { if(!alive) return; alive = false; c.done(100*(1-Math.abs(a)/12), 'écart de '+fr(Math.abs(a).toFixed(1))+'°', '0°, pile à la verticale'); });
+      return () => { alive = false; }; } };
+}
+function qTrait(r){
+  const ax = ri(r,25,60), ay = ri(r,30,190), bx = ri(r,280,315), by = ri(r,30,190);
+  return { title:'Trace un trait bien droit du point bleu au point rouge',
+    svg:`<polyline id="tr" class="cible" points=""/><circle cx="${ax}" cy="${ay}" r="9" fill="#1d4ed8"/><circle cx="${bx}" cy="${by}" r="9" fill="#d62828"/>`,
+    act(c){ let pts = null, fini = false; const svg = c.svg, tr = svg.querySelector('#tr'); svg.style.touchAction = 'none';
+      c.zone.innerHTML = '<p class="petit" style="margin-top:10px">Pose le doigt sur le point bleu et glisse jusqu\'au rouge, d\'un seul geste.</p>';
+      const P = e => { const b = svg.getBoundingClientRect(); return [(e.clientX-b.left)/b.width*340, (e.clientY-b.top)/b.height*220]; };
+      svg.onpointerdown = e => { if(fini) return; e.preventDefault(); pts = [P(e)]; try{ svg.setPointerCapture(e.pointerId); }catch(x){} };
+      svg.onpointermove = e => { if(!pts || fini) return; pts.push(P(e)); tr.setAttribute('points', pts.map(p => f1(p[0])+','+f1(p[1])).join(' ')); };
+      svg.onpointerup = svg.onpointercancel = () => { if(!pts || fini) return;
+        if(pts.length < 6){ pts = null; tr.setAttribute('points',''); return; }
+        fini = true; const L = Math.hypot(bx-ax,by-ay); let dev = 0;
+        for(const p of pts) dev += Math.abs((by-ay)*(p[0]-ax)-(bx-ax)*(p[1]-ay))/L;
+        dev /= pts.length; const f = pts[0], l = pts[pts.length-1], bouts = Math.hypot(f[0]-ax,f[1]-ay)+Math.hypot(l[0]-bx,l[1]-by);
+        c.done(100*(1-(dev+bouts/8)/14), 'écart moyen de '+fr(dev.toFixed(1)), '0, le trait parfait'); };
+      return () => { fini = true; }; } };
+}
+function qMorceau(r){
+  const base = ri(r,170,230), pas = ri(r,3,6)/100, ordre = [0,1,2,3,4];
+  for(let i=4;i>0;i--){ const j = Math.floor(r()*(i+1)); [ordre[i],ordre[j]] = [ordre[j],ordre[i]]; }
+  const rang = [0,1,2,3,4].sort((a,b) => ordre[a]-ordre[b]); let svg = '';
+  for(let i=0;i<5;i++){ const len = base*(1-ordre[i]*pas);
+    svg += `<g data-i="${i}" style="cursor:pointer" transform="translate(${ri(r,24,Math.floor(330-len))} ${28+i*41}) rotate(${ri(r,-5,5)})"><rect x="-20" y="-17" width="${f1(len+24)}" height="34" fill="transparent"/><rect class="rplein" y="-7" width="${f1(len)}" height="14"/><text class="cote" x="-16" y="5">${'ABCDE'[i]}</text></g>`; }
+  return { title:'Quelle est la planche la plus longue ?', svg,
+    act(c){ c.zone.innerHTML = '<p class="petit" style="margin-top:10px">Touche la planche la plus longue.</p>';
+      c.svg.querySelectorAll('[data-i]').forEach(g => g.onclick = () => { const i = +g.dataset.i, k = rang.indexOf(i);
+        c.done([100,60,30,0,0][k], 'planche '+'ABCDE'[i]+(k ? ', la '+(k+1)+'e plus longue' : ''), 'planche '+'ABCDE'[rang[0]]); }); } };
+}
+function qMemoire(r){
+  const n = ri(r,6,13), tt = ri(r,0,3), cells = [...Array(24).keys()];
+  for(let i=23;i>0;i--){ const j = Math.floor(r()*(i+1)); [cells[i],cells[j]] = [cells[j],cells[i]]; }
+  let c = 0, svg = '';
+  for(let i=0;i<n;i++){ const t = i === 0 ? tt : ri(r,0,3), col = cells[i]%6, row = Math.floor(cells[i]/6); if(t === tt) c++;
+    svg += `<g transform="translate(${f1(37+col*53.3+ri(r,-6,6))} ${f1(35+row*50+ri(r,-5,5))}) rotate(${ri(r,0,359)})">${OUTILS[t]}</g>`; }
+  return { title:'Mémorise cette bâche, elle disparaît dans 3 secondes', title2:`Combien y avait-il de ${['marteaux','truelles','clés','tournevis'][tt]} ?`, flash:3, unit:'', answer:c, tol:3, svg };
+}
+function qDosage(r){
+  const enL = r() < 0.5, cap = [10,20,50][ri(r,0,2)], F = [['1/4',.25],['1/3',1/3],['1/2',.5],['2/3',2/3],['3/4',.75]][ri(r,0,4)], dix = ri(r,2,9);
+  const cible = enL ? dix/10 : F[1], duree = ri(r,25,45)/10, bon = enL ? (cap*dix/10)+' L' : F[0]+', soit '+Math.round(cible*100)+' % du bidon';
+  return { title: enL ? `Mets ${cap*dix/10} L d'eau dans ce bidon de ${cap} L` : `Remplis ce bidon d'eau au ${F[0]}`,
+    svg:`<rect id="jet" x="166" y="14" width="8" height="188" fill="#1d4ed8" opacity="0"/><rect id="niv" x="120" y="202" width="100" height="0" fill="#1d4ed8" opacity=".55"/><path d="M120 40V202H220V40" stroke="#14213d" stroke-width="4" fill="none"/><path class="rep" style="stroke-width:7" d="M148 14H192"/>${enL ? `<text x="232" y="200">${cap} L</text>` : ''}`,
+    act(c){ let alive = true, verse = false, lvl = 0, prev = performance.now(); const niv = c.svg.querySelector('#niv'), jet = c.svg.querySelector('#jet');
+      c.zone.innerHTML = '<button class="go" id="verse" style="touch-action:none;user-select:none;-webkit-user-select:none">Maintiens pour verser</button><button id="ok2">C\'est dosé</button>';
+      const fin = () => { if(!alive) return; alive = false; const e = lvl-cible;
+        const com = Math.abs(e) < .05 ? 'dosage de chef' : e > .2 ? 'c\'est de la soupe' : e > 0 ? 'un peu trop mouillé' : e < -.2 ? 'sec comme un parpaing' : 'un peu sec';
+        c.done(100*(1-Math.abs(e)/.25), (enL ? fr((lvl*cap).toFixed(1))+' L' : Math.round(lvl*100)+' % du bidon')+', '+com, bon); };
+      const tick = now => { if(!alive) return; const dt = (now-prev)/1000; prev = now; if(verse) lvl += dt/duree;
+        const plein = lvl >= 1; if(plein) lvl = 1;
+        niv.setAttribute('y', 202-162*lvl); niv.setAttribute('height', 162*lvl); jet.setAttribute('opacity', verse ? .55 : 0);
+        if(plein){ alive = false; c.done(0, 'tu as inondé le chantier', bon); return; }
+        requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      const b = el('verse'); b.onpointerdown = e => { e.preventDefault(); verse = true; }; b.onpointerup = b.onpointerleave = b.onpointercancel = () => { verse = false; }; b.oncontextmenu = e => e.preventDefault();
+      tap(el('ok2'), fin); c.fin = fin;
+      return () => { alive = false; }; } };
+}
+const tenir = (b,on,off) => { b.onpointerdown = e => { e.preventDefault(); on(); }; b.onpointerup = b.onpointerleave = b.onpointercancel = off; b.oncontextmenu = e => e.preventDefault(); };
+function qMarteau(r){
+  const periode = ri(r,7,12)/10;
+  return { title:'Enfonce le clou pile au ras, en 3 coups',
+    svg:`<rect class="plein" x="60" y="160" width="200" height="44"/><rect id="clou" x="156" y="60" width="8" height="100" fill="#14213d"/><rect id="tete" x="146" y="54" width="28" height="8" fill="#14213d"/>
+<rect x="292" y="30" width="24" height="170" fill="#fff" stroke="#14213d" stroke-width="2"/><rect x="293" y="${f1(200-170*.85)}" width="22" height="${f1(170*.2)}" fill="#d6e2ff"/><rect id="cur" x="286" y="197" width="36" height="6" fill="#d62828"/><text id="cps" x="60" y="30">Coup 1 sur 3</text>`,
+    act(c){ let alive = true, f = 0, coups = 0, total = 0; const t0 = performance.now(), q = x => c.svg.querySelector(x);
+      c.zone.innerHTML = '<button class="go" id="stop">FRAPPE</button>';
+      const fin = () => { if(!alive) return; alive = false; const com = total > 105 ? 'tu as défoncé la planche' : total < 95 ? 'il dépasse encore' : 'au ras, propre';
+        c.done(100*(1-Math.abs(total-100)/40), 'clou enfoncé à '+Math.round(total)+' %, '+com, '100 %, pile au ras'); };
+      const tick = now => { if(!alive) return; const u = ((now-t0)/1000/periode)%2; f = u < 1 ? u : 2-u; q('#cur').setAttribute('y', f1(197-170*f)); requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      tap(el('stop'), () => { if(!alive) return; coups++; total += f*45; const d = Math.min(total,100);
+        q('#clou').setAttribute('y', 60+d); q('#clou').setAttribute('height', 100-d); q('#tete').setAttribute('y', 54+d);
+        if(coups >= 3) fin(); else q('#cps').textContent = 'Coup '+(coups+1)+' sur 3'; });
+      c.fin = fin; return () => { alive = false; }; } };
+}
+function qGrue(r){
+  const periode = ri(r,16,26)/10, px = ri(r,60,280), phase = r()*6.28;
+  return { title:'Lâche la charge pile sur la palette',
+    svg:`<path class="rep" style="stroke-width:5" d="M20 205V25H325"/><rect class="plein" x="${px-24}" y="194" width="48" height="9"/><path class="cible" style="stroke-width:2.5" d="M${px} 184V194"/>
+<g id="cha" transform="translate(170 0)"><path id="cab" d="M0 25V70" stroke="#14213d" stroke-width="2"/><rect id="col" class="rplein" x="-16" y="70" width="32" height="24"/></g>`,
+    act(c){ let alive = true, x = 170; const t0 = performance.now(), q = k => c.svg.querySelector(k);
+      c.zone.innerHTML = '<button class="go" id="stop">LÂCHE</button>';
+      const tick = now => { if(!alive) return; x = 170+125*Math.sin(2*Math.PI*(now-t0)/1000/periode+phase); q('#cha').setAttribute('transform', `translate(${f1(x)} 0)`); requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      tap(el('stop'), () => { if(!alive) return; alive = false; q('#col').setAttribute('y', 170); q('#cab').setAttribute('d', 'M0 25V42');
+        c.done(100*(1-Math.abs(x-px)/45), 'à '+Math.round(Math.abs(x-px)*5)+' cm du centre de la palette', 'pile au centre'); });
+      return () => { alive = false; }; } };
+}
+function qCoupe(r){
+  const s = ri(r,95,115), L = ri(r,24,50)*5, T = ri(r,6,L/5-4)*5, x0 = 30, W = L/100*s;
+  return { title:`Coupe cette planche à ${T} cm du bout bleu`,
+    svg:`<rect class="plein" x="${x0}" y="80" width="${f1(W)}" height="30"/><path class="rep" style="stroke-width:6" d="M${x0} 74V116"/><path id="scie" class="cible" d="M${f1(x0+W)} 58V132"/>${ref(s,'100 cm')}`,
+    act(c){ let x = x0+W, fini = false, down = false; const svg = c.svg, scie = svg.querySelector('#scie'); svg.style.touchAction = 'none';
+      c.zone.innerHTML = '<p class="petit" style="margin-top:10px">Glisse le doigt sur la planche pour placer le trait de coupe.</p><button class="go" id="stop">COUPE</button>';
+      const move = e => { if(fini) return; const b = svg.getBoundingClientRect(); x = Math.max(x0, Math.min(x0+W, (e.clientX-b.left)/b.width*340)); scie.setAttribute('d', `M${f1(x)} 58V132`); };
+      svg.onpointerdown = e => { down = true; e.preventDefault(); move(e); }; svg.onpointermove = e => { if(down) move(e); }; svg.onpointerup = svg.onpointercancel = () => { down = false; };
+      const fin = () => { if(fini) return; fini = true; const cm = (x-x0)/s*100; c.done(100*(1-Math.abs(cm-T)/Math.max(25,T*0.3)), Math.round(cm)+' cm', T+' cm'); };
+      tap(el('stop'), fin); c.fin = fin; return () => { fini = true; }; } };
+}
+function qTravers(r){
+  const cols = ri(r,6,8), rows = ri(r,5,7), bw = 300/cols, bh = bw*0.42, k = ri(r,0,cols*rows-1), ang = ri(r,4,8)*(r()<.5?-1:1), y0 = (220-rows*bh)/2; let svg = '';
+  for(let i=0;i<cols*rows;i++){ const cx = 20+(i%cols)*bw+bw/2, cy = y0+Math.floor(i/cols)*bh+bh/2;
+    svg += `<rect data-i="${i}" class="plein" style="cursor:pointer" x="${f1(cx-bw/2+1.5)}" y="${f1(cy-bh/2+1.5)}" width="${f1(bw-3)}" height="${f1(bh-3)}"${i===k ? ` transform="rotate(${ang} ${f1(cx)} ${f1(cy)})"` : ''}/>`; }
+  return { title:'Touche le parpaing posé de travers', svg,
+    act(c){ let fini = false; const t0 = performance.now(), blocs = c.svg.querySelectorAll('[data-i]');
+      c.zone.innerHTML = '<p class="petit" style="margin-top:10px">Plus tu le trouves vite, plus tu marques. Si tu te trompes de bloc, c\'est zéro.</p>';
+      blocs.forEach(b => b.onpointerdown = () => { if(fini) return; fini = true; const t = (performance.now()-t0)/1000;
+        blocs.forEach(o => { if(+o.dataset.i === k){ o.style.stroke = '#d62828'; o.style.strokeWidth = 3; } });
+        if(+b.dataset.i === k) c.done(Math.max(30,100-7*t), 'trouvé en '+fr(t.toFixed(1))+' s', 'le plus vite possible');
+        else c.done(0, 'raté, ce n\'était pas celui-là', 'le bloc entouré en rouge'); });
+      return () => { fini = true; }; } };
+}
+function qPelle(r){
+  const s = ri(r,60,75), T = ri(r,4,18)*10, duree = ri(r,30,50)/10;
+  return { title:`Creuse une tranchée de ${T} cm de profondeur`,
+    svg:`<rect class="plein" x="110" y="40" width="230" height="172"/><rect id="trou" x="190" y="40" width="70" height="0" fill="#fff" stroke="#14213d" stroke-width="1.5"/><path class="rep" d="M0 40H110M70 40V${40+s}M64 ${40+s}H76"/><text x="14" y="${40+s+18}">100 cm</text>`,
+    act(c){ let alive = true, creuse = false, d = 0, prev = performance.now(); const trou = c.svg.querySelector('#trou');
+      c.zone.innerHTML = '<button class="go" id="verse" style="touch-action:none;user-select:none;-webkit-user-select:none">Maintiens pour creuser</button><button id="ok2">C\'est assez profond</button>';
+      const fin = () => { if(!alive) return; alive = false; c.done(100*(1-Math.abs(d-T)/Math.max(25,T*0.3)), Math.round(d)+' cm', T+' cm'); };
+      const tick = now => { if(!alive) return; const dt = (now-prev)/1000; prev = now; if(creuse) d += dt/duree*200;
+        const fond = d >= 200; if(fond) d = 200; trou.setAttribute('height', f1(d/100*s));
+        if(fond){ alive = false; c.done(0, 'tu as percé la canalisation', T+' cm'); return; }
+        requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      tenir(el('verse'), () => { creuse = true; }, () => { creuse = false; });
+      tap(el('ok2'), fin); c.fin = fin; return () => { alive = false; }; } };
+}
+function qRuban(r){
+  const s = ri(r,55,62), T = ri(r,10,45)*10, v = ri(r,70,130);
+  return { title:`Bloque le mètre ruban à ${T} cm`,
+    svg:`<rect id="rub" class="rplein" x="30" y="72" width="0" height="20"/><rect x="6" y="62" width="30" height="40" rx="6" fill="#1d4ed8"/>${ref(s,'100 cm')}`,
+    act(c){ let alive = true, w = 0; const t0 = performance.now()+600, rub = c.svg.querySelector('#rub');
+      c.zone.innerHTML = '<button class="go" id="stop">BLOQUE</button>';
+      const tick = now => { if(!alive) return; w = Math.max(0,(now-t0)/1000)*v; const bout = w >= 300; if(bout) w = 300; rub.setAttribute('width', f1(w));
+        if(bout){ alive = false; c.done(0, 'le ruban est sorti du boîtier', T+' cm'); return; }
+        requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      tap(el('stop'), () => { if(!alive) return; alive = false; const cm = w/s*100; c.done(100*(1-Math.abs(cm-T)/Math.max(25,T*0.25)), Math.round(cm)+' cm', T+' cm'); });
+      return () => { alive = false; }; } };
+}
+function qCarreau(r){
+  const secret = ri(r,8,30)*(r()<.5?-1:1); let svg = '';
+  for(let i=0;i<9;i++) if(i !== 4) svg += `<rect class="plein" style="fill:#fff" x="${80+60*(i%3)}" y="${20+60*Math.floor(i/3)}" width="56" height="56"/>`;
+  return { title:'Remets le carreau rouge bien aligné avec les autres',
+    svg: svg+`<g id="car" transform="rotate(${-secret} 168 108)"><rect class="rplein" x="140" y="80" width="56" height="56"/></g>`,
+    act(c){ let fini = false; const car = c.svg.querySelector('#car');
+      c.zone.innerHTML = '<input type="range" id="rot" min="-45" max="45" step="0.5" value="0" aria-label="Rotation du carreau" style="padding:0;border:0;background:none;height:44px;margin-top:8px;accent-color:#d62828"><button class="go" id="stop">C\'est aligné</button>';
+      const rot = el('rot'); rot.oninput = () => { if(!fini) car.setAttribute('transform', `rotate(${rot.value-secret} 168 108)`); };
+      const fin = () => { if(fini) return; fini = true; const err = Math.abs(rot.value-secret); c.done(100*(1-err/8), 'écart de '+fr(err.toFixed(1))+'°', '0°, parfaitement aligné'); };
+      tap(el('stop'), fin); c.fin = fin; return () => { fini = true; }; } };
+}
+const EPREUVES = [qAngle,qPente,qLong,qDiam,qBlocs,qTuyaux,qMarches,qZigzag,qPerim,qAplomb,qHauteur,qSerpent,qOutils,qClous,qFenetres,qPalettes,qCasques,qEchaf,qSacs,qCarreaux,qTreillis,qCuve,qPart,qPiquets,qMurLong,qPaves,qScie,qEchelle,qCote,qTole,qSurfCalc,qSurfOeil,qToupie,qCamion,qChrono,qPlomb,qTrait,qMorceau,qMemoire,qDosage,qMarteau,qGrue,qCoupe,qTravers,qPelle,qRuban,qCarreau];
+function build(seed){
+  const r = rng(seed), t = EPREUVES.slice();
+  for(let i=t.length-1;i>0;i--){ const j = Math.floor(r()*(i+1)); [t[i],t[j]] = [t[j],t[i]]; }
+  return t.slice(0,NBQ).map(f => f(r));
+}
+function points(q,v){ if(v === null || isNaN(v)) return 0; return Math.max(0, Math.round(100*(1 - Math.abs(v-q.answer)/q.tol))); }
+
+/* ---------- classement transporté dans le lien ---------- */
+const sig = (seed,n,s) => (h32('oeil|'+seed+'|'+n+'|'+s+'|truelle') % 46656).toString(36);
+const board = seed => store.get('odm_b_'+seed) || {};
+function merge(seed, list){
+  const b = board(seed);
+  if(Array.isArray(list)) for(const e of list){
+    if(!Array.isArray(e)) continue;
+    const [n,s,g] = e;
+    if(typeof n !== 'string' || n !== cleanName(n) || !n || !Number.isInteger(s) || s<0 || s>NBQ*100 || g !== sig(seed,n,s)) continue;
+    if(!has(b,n)) b[n] = s;
+  }
+  store.set('odm_b_'+seed, b);
+  return b;
+}
+function enc(seed){
+  const b = board(seed), list = Object.keys(b).map(n => [n, b[n], sig(seed,n,b[n])]);
+  return btoa(unescape(encodeURIComponent(JSON.stringify(list)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function dec(s){ try{ return JSON.parse(decodeURIComponent(escape(atob(String(s).replace(/-/g,'+').replace(/_/g,'/'))))); }catch(e){ return []; } }
+const link = seed => location.href.split(/[?#]/)[0] + '?d=' + seed + '&r=' + enc(seed);
+function setUrl(q){ try{ history.replaceState(null,'',location.href.split(/[?#]/)[0] + q); }catch(e){} }
+function rankHtml(seed, me){
+  const b = board(seed), rows = Object.keys(b).sort((x,y) => b[y]-b[x]);
+  if(!rows.length) return '<p class="petit">Personne n\'a encore joué ce défi. À toi d\'ouvrir le classement.</p>';
+  return '<ol class="rang">' + rows.map((n,i) => `<li class="${n===me?'moi':''}"><span class="pos">${i+1}</span><span class="nom">${esc(n)}</span><span class="sc">${b[n]}</span></li>`).join('') + '</ol>';
+}
+
+/* ---------- écrans ---------- */
+const TITRE = `<h1><span>L'œil</span><span>du maçon</span></h1>`;
+const REGLE = `<p>${NBQ} épreuves, ${TEMPS} secondes chacune. Pas de mètre, pas de niveau : juste ton œil. Le plus proche de la bonne réponse marque le plus.</p>
+<p class="petit">En <span class="rouge">rouge</span>, ce que tu dois estimer. En <span class="bleu">bleu</span>, le repère.</p>`;
+function home(){
+  G = null; setUrl('');
+  app.innerHTML = `${TITRE}${REGLE}
+<label for="nom">Ton nom sur le chantier</label><input id="nom" maxlength="16" autocomplete="nickname" value="${esc(store.get('odm_nom')||'')}">
+<button id="creer">Créer un défi</button>
+<label for="code">Tu as reçu un code ?</label><input id="code" maxlength="16" autocapitalize="characters" autocomplete="off" placeholder="Ex. TRUELLE4F9">
+<button id="rejoindre" class="second">Rejoindre ce défi</button>
+<p class="erreur" id="err" role="alert"></p>`;
+  el('creer').onclick = () => {
+    const n = cleanName(el('nom').value);
+    if(!n){ el('err').textContent = 'Écris ton nom pour apparaître au classement.'; el('nom').focus(); return; }
+    store.set('odm_nom', n); play(newSeed(), n);
+  };
+  el('rejoindre').onclick = () => {
+    const c = el('code').value.trim().toUpperCase();
+    if(!/^[A-Z0-9]{4,16}$/.test(c)){ el('err').textContent = 'Ce code n\'est pas valide. Vérifie les lettres et les chiffres.'; return; }
+    store.get('odm_p_'+c) ? result(c) : invite(c);
+  };
+}
+function invite(seed){
+  G = null; setUrl('?d='+seed);
+  const n = Object.keys(board(seed)).length;
+  app.innerHTML = `${TITRE}<p class="code">${esc(nomDefi(seed))}</p>${REGLE}
+<h2>${n ? 'Classement à battre' : 'Classement'}</h2>${rankHtml(seed,null)}
+<label for="nom">Ton nom sur le chantier</label><input id="nom" maxlength="16" autocomplete="nickname" value="${esc(store.get('odm_nom')||'')}">
+<button id="go">Relever le défi</button><p class="erreur" id="err" role="alert"></p>`;
+  el('go').onclick = () => {
+    const name = cleanName(el('nom').value), err = el('err');
+    if(!name){ err.textContent = 'Écris ton nom pour apparaître au classement.'; return; }
+    if(has(board(seed),name)){ err.textContent = 'Ce nom est déjà au classement. Ajoute une initiale.'; return; }
+    store.set('odm_nom', name); play(seed, name);
+  };
+}
+let G = null;
+function play(seed, name){ setUrl('?d='+seed); G = { seed, name, qs:build(seed), i:0, total:0, timer:null, locked:false, val:'' }; showQ(); }
+function pave(unit){
+  el('zone').innerHTML = `<div class="aff" aria-live="polite"><span id="val" class="vide">?</span><span>${unit}</span></div>
+<div class="pave">${['1','2','3','del','4','5','6',',','7','8','9','0'].map(k => `<button type="button" data-k="${k}" ${k==='del'?'aria-label="Effacer"':''}>${k==='del'?'⌫':k}</button>`).join('')}
+<button type="button" class="ok" id="ok">Valider</button></div>`;
+  el('zone').querySelectorAll('[data-k]').forEach(b => b.onclick = () => press(b.dataset.k));
+  el('ok').onclick = () => answer(false);
+}
+function showQ(){
+  const g = G, idx = G.i, q = G.qs[idx]; G.locked = false; G.val = ''; G.stop = null;
+  app.innerHTML = `<div class="tete"><span>Épreuve ${idx+1} sur ${G.qs.length}</span><span>${G.total} pts</span></div>
+<div class="ruban" aria-hidden="true"><div id="bande"></div></div>
+<h2 id="titre">${q.title}</h2>
+<svg class="fig" id="fig" viewBox="0 0 340 220" role="img" aria-label="Figure de l'épreuve">${q.svg}</svg>
+<div id="zone"></div>`;
+  const vivant = () => G === g && G.i === idx && !G.locked;
+  G.fin = null;
+  if(q.act){ const ctx = { svg:el('fig'), zone:el('zone'), done:(p,mine,good) => { if(vivant()) reveal(Math.max(0,Math.min(100,Math.round(p))), mine, good); } }; G.stop = q.act(ctx) || null; G.fin = ctx.fin || null; }
+  else if(q.flash){
+    el('zone').innerHTML = '<p class="petit" style="margin-top:10px">Regarde bien, ça va disparaître.</p>';
+    G.flashT = setTimeout(() => { if(!vivant()) return; el('fig').innerHTML = '<text x="170" y="135" text-anchor="middle" style="font-size:70px">?</text>'; el('titre').textContent = q.title2; pave(q.unit); }, q.flash*1000);
+  } else pave(q.unit);
+  if(q.noTimer) return;
+  const t0 = Date.now(), bande = el('bande');
+  G.timer = setInterval(() => { const left = 1 - (Date.now()-t0)/(TEMPS*1000); bande.style.width = Math.max(0,left*100)+'%'; if(left <= 0) answer(true); }, 100);
+}
+function press(k){
+  const v = el('val');
+  if(!G || G.locked || !v) return;
+  if(k === 'del') G.val = G.val.slice(0,-1);
+  else if(k === ','){ if(G.val && !G.val.includes(',')) G.val += ','; }
+  else if(G.val.length < 6) G.val += k;
+  v.textContent = G.val || '?'; v.className = G.val ? '' : 'vide';
+}
+function answer(timeout){
+  if(!G || G.locked) return;
+  const q = G.qs[G.i];
+  if(q.act){ if(timeout){ if(G.fin){ const f = G.fin; G.fin = null; f(); } else reveal(0, 'trop tard', 'il fallait agir avant la fin du temps'); } return; }
+  if(!timeout && !G.val) return;               /* rien d'écrit : on ne valide pas dans le vide */
+  const v = G.val ? parseFloat(G.val.replace(',','.')) : null, u = q.unit ? ' '+q.unit : '';
+  reveal(points(q,v), v === null || isNaN(v) ? 'aucune' : fr(v)+u, fr(q.answer)+u);
+}
+function reveal(p, mine, good){
+  G.locked = true; clearInterval(G.timer); clearTimeout(G.flashT); if(G.stop){ G.stop(); G.stop = null; }
+  G.total += p;
+  const last = G.i === G.qs.length-1;
+  el('zone').innerHTML = `<div class="retour"><div class="pts">+${p} points</div>
+<div>Ta réponse : <b>${mine}</b></div><div>Bonne réponse : <b>${good}</b></div></div>
+<button class="go" id="suiv">${last ? 'Voir le classement' : 'GO'}</button>`;
+  el('suiv').onclick = () => { if(last) finish(); else { G.i++; showQ(); } };
+}
+document.addEventListener('keydown', e => {
+  if(!G) return;
+  if(e.key === 'Enter'){ e.preventDefault(); if(G.locked){ const b = el('suiv'); if(b) b.click(); } else answer(false); return; }
+  if(G.locked) return;
+  if(/^[0-9]$/.test(e.key)) press(e.key);
+  else if(e.key === ',' || e.key === '.') press(',');
+  else if(e.key === 'Backspace') press('del');
+});
+function finish(){
+  const g = G; G = null;
+  const b = board(g.seed); b[g.name] = g.total; store.set('odm_b_'+g.seed, b);
+  store.set('odm_p_'+g.seed, { name:g.name, total:g.total });
+  result(g.seed);
+}
+function result(seed){
+  G = null;
+  const me = store.get('odm_p_'+seed), url = link(seed), max = NBQ*100; setUrl('?d='+seed+'&r='+enc(seed));
+  const s = me.total, verdict = s>=850 ? 'Chef de chantier. Tu peux ranger le niveau.' : s>=700 ? 'Bon compagnon, l\'œil est là.' : s>=500 ? 'Ça tient debout, mais sors quand même le mètre.' : 'Apprenti. Reprends le cordeau.';
+  const txt = `🧱 L'œil du maçon, ${nomDefi(seed)}\n${me.name} : ${s}/${max}\nFais mieux : ${url}`;
+  app.innerHTML = `<p class="code">${esc(nomDefi(seed))}</p>
+<div class="score">${s}<small> / ${max}</small></div><p><b>${verdict}</b></p>
+<h2>Classement</h2>${rankHtml(seed, me.name)}
+<a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Envoyer sur WhatsApp</a>
+<button id="copier" class="second">Copier le lien du défi</button>
+<button id="nouveau" class="second">Lancer une revanche</button>
+<p class="petit" id="info" role="status" style="margin-top:14px">Le classement voyage dans le lien : chacun renvoie le sien dans le groupe après avoir joué, et le dernier lien ouvert met ton classement à jour. Code à donner de vive voix : ${esc(seed)}.</p>`;
+  el('copier').onclick = async () => {
+    try{ await navigator.clipboard.writeText(url); el('info').textContent = 'Lien copié. Colle-le dans le groupe.'; }
+    catch(e){ el('info').textContent = url; }
+  };
+  el('nouveau').onclick = () => play(newSeed(), me.name);
+}
+
+/* ---------- démarrage ---------- */
+(function(){
+  const p = new URLSearchParams(location.search), d = (p.get('d')||'').toUpperCase();
+  if(/^[A-Z0-9]{4,16}$/.test(d)){
+    if(p.get('r')) merge(d, dec(p.get('r')));
+    store.get('odm_p_'+d) ? result(d) : invite(d);
+  } else home();
+})();
+</script>
+</body>
+</html>
